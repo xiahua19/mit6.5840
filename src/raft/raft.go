@@ -18,15 +18,18 @@ package raft
 //
 
 import (
-	//	"bytes"
+	"math"
 	"math/rand"
 	"sync"
 	"sync/atomic"
 	"time"
 
-	//	"6.5840/labgob"
 	"6.5840/labrpc"
 )
+
+///////////////////////////////////////////////////////////////////////////////////////
+/////////////////////////// DEFINED CONST ENUM OR VARIABLES ///////////////////////////
+///////////////////////////////////////////////////////////////////////////////////////
 
 // enum different roles (follower, candidate, leader) for servers
 const (
@@ -35,8 +38,18 @@ const (
 	Leader
 )
 
+// HeartBeatTimeOut
+// const variable for heart beat timeout
+const (
+	HeartBeatTimeOut = 150
+)
+
+///////////////////////////////////////////////////////////////////////////////////////
+///////////////////////// DEFINED MESSAGE, ARGS, REPLY STRUCT /////////////////////////
+///////////////////////////////////////////////////////////////////////////////////////
+
 // Entry
-// entry struct, contains term and an interface
+// a struct that contains term and an interface
 type Entry struct {
 	Term int
 	Cmd  interface{} // can be any type
@@ -63,6 +76,52 @@ type ApplyMsg struct {
 	SnapshotTerm  int
 	SnapshotIndex int
 }
+
+// RequestVoteArgs
+// example RequestVote RPC arguments structure.
+// field names must start with capital letters!
+// (invoked by candidates to gather votes)
+type RequestVoteArgs struct {
+	Term         int // candidate's term
+	CandidateId  int // candidate requesting vote
+	LastLogIndex int // index of candidate's last log entry
+	LastLogTerm  int // term of candidate's last log entry
+}
+
+// RequestVoteReply
+// example RequestVote RPC reply structure.
+// field names must start with capital letters!
+// (receivers to reply RequestVoteArgs from one server)
+// (1. reply false if term < currentTerm)
+// (2. if votedFor is null or candidatedId, and candidate's log is at least as up-to-date as receiver's log, grant vote)
+type RequestVoteReply struct {
+	Term        int  // currentTerm, for candidate to update itsel
+	VoteGranted bool // true means candidate received vote
+}
+
+// AppendEntriesArgs
+// (invoked by leader to replicate log entries)
+// (and also used as heartbeat)
+type AppendEntriesArgs struct {
+	Term         int     // leader's term
+	LeaderId     int     // so follower can redirect clients
+	PrevLogIndex int     // index of log entry immediately preceding new ones
+	PrevLogTerm  int     // term of PrevLogIndex entry
+	Entries      []Entry // log entries to store (empty for heartbeat; may send more than one for efficiency)
+	LeaderCommit int     // leader's commitIndex
+}
+
+// AppendEntriesReply
+// example RequestVote RPC reply structure
+// field names must start with capital letters!
+type AppendEntriesReply struct {
+	Term    int  // currentTerm, for leader to update itself
+	Success bool // true if follower contained entry matching PrevLogIndex and PrevLogTerm
+}
+
+///////////////////////////////////////////////////////////////////////////////////////
+///////////////////////////////// DEFINED RAFT STRUCT /////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////////////
 
 // Raft
 // A Go object implementing a single Raft peer.
@@ -95,17 +154,13 @@ type Raft struct {
 	voteCount int        // the vote count
 }
 
-// GetState
-// return currentTerm and whether this server
-// believes it is the leader.
-func (rf *Raft) GetState() (int, bool) {
+///////////////////////////////////////////////////////////////////////////////////////
+//////////////////////////////// DEFINED RAFT FUNCTIONS ///////////////////////////////
+///////////////////////////////////////////////////////////////////////////////////////
 
-	var term int
-	var isleader bool
-	// Your code here (3A).
-	return term, isleader
-}
+///////////////////////////////// PERSISTENCE //////////////////////////////////////////
 
+// persist
 // save Raft's persistent state to stable storage,
 // where it can later be retrieved after a crash and restart.
 // see paper's Figure 2 for a description of what should be persistent.
@@ -124,6 +179,7 @@ func (rf *Raft) persist() {
 	// rf.persister.Save(raftstate, nil)
 }
 
+// readPersist
 // restore previously persisted state.
 func (rf *Raft) readPersist(data []byte) {
 	if data == nil || len(data) < 1 { // bootstrap without any state?
@@ -151,37 +207,16 @@ func (rf *Raft) readPersist(data []byte) {
 // that index. Raft should now trim its log as much as possible.
 func (rf *Raft) Snapshot(index int, snapshot []byte) {
 	// Your code here (3D).
-
 }
 
-// RequestVoteArgs
-// example RequestVote RPC arguments structure.
-// field names must start with capital letters!
-// (invoked by candidates to gather votes)
-type RequestVoteArgs struct {
-	Term         int // candidate's term
-	CandidateId  int // candidate requesting vote
-	LastLogIndex int // index of candidate's last log entry
-	LastLogTerm  int // term of candidate's last log entry
-}
-
-// RequestVoteReply
-// example RequestVote RPC reply structure.
-// field names must start with capital letters!
-// (receivers to reply RequestVoteArgs from one server)
-// (1. reply false if term < currentTerm)
-// (2. if votedFor is null or candidatedId, and candidate's log is at least as up-to-date as receiver's log, grant vote)
-type RequestVoteReply struct {
-	Term        int  // currentTerm, for candidate to update itself
-	VoteGranted bool // true means candidate received vote
-}
+//////////////////////////////// VOTE AND ELECT ///////////////////////////////////////
 
 // RequestVote
 // example RequestVote RPC handler.
 func (rf *Raft) RequestVote(args *RequestVoteArgs, reply *RequestVoteReply) {
 	rf.mu.Lock()
 
-	// 1. reply false if term < currentTerm
+	// 1. reply false if term < currentTerm (sender is old)
 	if args.Term < rf.currentTerm {
 		reply.Term = rf.currentTerm
 		rf.mu.Unlock()
@@ -250,111 +285,8 @@ func (rf *Raft) RequestVote(args *RequestVoteArgs, reply *RequestVoteReply) {
 // that the caller passes the address of the reply struct with &, not
 // the struct itself.
 func (rf *Raft) sendRequestVote(server int, args *RequestVoteArgs, reply *RequestVoteReply) bool {
-	ok := rf.peers[server].Call("Raft.RequestVote", args, reply)
+	ok := rf.peers[server].Call("Raft.RequestVote", args, reply) // call the RequestVote on a server (rpc endpoint)
 	return ok
-}
-
-// AppendEntriesArgs
-// (invoked by leader to replicate log entries)
-// (and also used as heartbeat)
-type AppendEntriesArgs struct {
-	Term         int     // leader's term
-	LeaderId     int     // so follower can redirect clients
-	PrevLogIndex int     // index of log entry immediately preceding new ones
-	PrevLogTerm  int     // term of PrevLogIndex entry
-	Entries      []Entry // log entries to store (empty for heartbeat; may send more than one for efficiency)
-	LeaderCommit int     // leader's commitIndex
-}
-
-// AppendEntriesReply
-// example RequestVote RPC reply structure
-// field names must start with capital letters!
-type AppendEntriesReply struct {
-	Term    int  // currentTerm, for leader to update itself
-	Success bool // true if follower contained entry matching PrevLogIndex and PrevLogTerm
-}
-
-func (rf *Raft) AppendEntries(args *AppendEntriesArgs, reply *AppendEntriesReply) {
-	rf.mu.Lock()
-
-	// a message send by old leader
-	if args.Term < rf.currentTerm {
-		// 1. Reply false if term < currentTerm
-		reply.Term = rf.currentTerm
-		rf.mu.Unlock()
-		reply.Success = false
-		return
-	}
-
-	// record the access timeStamp
-	rf.timeStamp = time.Now()
-
-	// the first message send by new leader
-	if args.Term > rf.currentTerm {
-		rf.currentTerm = args.Term
-		rf.voteFor = -1
-		rf.role = Follower
-	}
-
-	// heart beat function
-	if args.Entries == nil {
-		DPrintf("server %v receive leader &%v's heart beat", rf.me, args.LeaderId)
-	}
-
-	// check the PrevLogIndex and PrevLogTerm
-	if args.Entries != nil &&
-		(args.PrevLogIndex >= len(rf.log) || rf.log[args.PrevLogIndex].Term != args.PrevLogTerm) {
-		// 2. Reply false if log doesn't contain an entry at PrevLogIndex whose term matches PrevLogTerm
-		reply.Term = rf.currentTerm
-		rf.mu.Lock()
-		reply.Success = false
-		return
-	}
-
-	// 3. If an existing entry
-}
-
-// Start
-// the service using Raft (e.g. a k/v server) wants to start
-// agreement on the next command to be appended to Raft's log. if this
-// server isn't the leader, returns false. otherwise start the
-// agreement and return immediately. there is no guarantee that this
-// command will ever be committed to the Raft log, since the leader
-// may fail or lose an election. even if the Raft instance has been killed,
-// this function should return gracefully.
-//
-// the first return value is the index that the command will appear at
-// if it's ever committed. the second return value is the current
-// term. the third return value is true if this server believes it is
-// the leader.
-func (rf *Raft) Start(command interface{}) (int, int, bool) {
-	index := -1
-	term := -1
-	isLeader := true
-
-	// Your code here (3B).
-
-	return index, term, isLeader
-}
-
-// Kill
-// the tester doesn't halt goroutines created by Raft after each test,
-// but it does call the Kill() method. your code can use killed() to
-// check whether Kill() has been called. the use of atomic avoids the
-// need for a lock.
-//
-// the issue is that long-running goroutines use memory and may chew
-// up CPU time, perhaps causing later tests to fail and generating
-// confusing debug output. any goroutine with a long-running loop
-// should call killed() to check whether it should stop.
-func (rf *Raft) Kill() {
-	atomic.StoreInt32(&rf.dead, 1)
-	// Your code here, if desired.
-}
-
-func (rf *Raft) killed() bool {
-	z := atomic.LoadInt32(&rf.dead)
-	return z == 1
 }
 
 // Whether this server need a vote
@@ -366,7 +298,7 @@ func (rf *Raft) ticker() {
 
 		// pause for a random amount of time between 50 and 350
 		// milliseconds.
-		ms := 50 + (rand.Int63() % 300)
+		ms := 50 + rd.Intn(300)
 		time.Sleep(time.Duration(ms) * time.Millisecond)
 
 		// lock the server to perform whether it need a vote
@@ -478,6 +410,63 @@ func (rf *Raft) GetVoteAnswer(serverTo int, args *RequestVoteArgs) bool {
 	return reply.VoteGranted
 }
 
+////////////////////////// APPENDENTRIES AND HEARTBEAIES ////////////////////////////////
+
+// AppendEntries
+// (append an entry to it and reply)
+func (rf *Raft) AppendEntries(args *AppendEntriesArgs, reply *AppendEntriesReply) {
+	rf.mu.Lock()
+
+	// a message send by old leader
+	// need tell the sender the latest term and return false
+	if args.Term < rf.currentTerm {
+		// 1. Reply false if term < currentTerm
+		reply.Term = rf.currentTerm
+		rf.mu.Unlock()
+		reply.Success = false
+		return
+	}
+
+	// record the access timeStamp
+	rf.timeStamp = time.Now()
+
+	// the first message send by new leader
+	if args.Term > rf.currentTerm {
+		rf.currentTerm = args.Term
+		rf.voteFor = -1
+		rf.role = Follower
+	}
+
+	// heart beat function
+	if args.Entries == nil {
+		DPrintf("server %v receive leader &%v's heart beat", rf.me, args.LeaderId)
+	}
+
+	// check the PrevLogIndex and PrevLogTerm
+	// if there is no valid log at PrevLogIndex or PrevLogTerm not matches, return false
+	if args.Entries != nil &&
+		(args.PrevLogIndex >= len(rf.log) || rf.log[args.PrevLogIndex].Term != args.PrevLogTerm) {
+		// 2. Reply false if log doesn't contain an entry at PrevLogIndex whose term matches PrevLogTerm
+		reply.Term = rf.currentTerm
+		rf.mu.Lock()
+		reply.Success = false
+		return
+	}
+
+	// 3. If an existing entry conflicts with a new one (same index
+	// but different terms), delete the existing entry and all that
+	// follow it
+	// 4. Append any new entries not already in the log
+	reply.Success = true
+	reply.Term = rf.currentTerm
+
+	if args.LeaderCommit > rf.commitIndex {
+		// 5. If leaderCommit > commitIndex, set commitIndex = min(leaderCommit, index of last new entry)
+		rf.commitIndex = int(math.Min(float64(args.LeaderCommit), float64(len(rf.log)-1)))
+	}
+	rf.mu.Unlock()
+}
+
 // SendHeartBeats
 // used by leaders to send heart beats to other servers
 func (rf *Raft) SendHeartBeats() {
@@ -512,6 +501,7 @@ func (rf *Raft) SendHeartBeats() {
 	}
 }
 
+// handleHeartBeat
 func (rf *Raft) handleHeartBeat(serverTo int, args *AppendEntriesArgs) {
 	sendArgs := *args
 	reply := &AppendEntriesReply{}
@@ -532,6 +522,69 @@ func (rf *Raft) handleHeartBeat(serverTo int, args *AppendEntriesArgs) {
 		rf.voteFor = -1
 		rf.role = Follower
 	}
+}
+
+// sendAppendEntries
+// send an append entry to a certain server and receive its reply
+func (rf *Raft) sendAppendEntries(serverTo int, args *AppendEntriesArgs, reply *AppendEntriesReply) bool {
+	ok := rf.peers[serverTo].Call("Raft.AppendEntries", args, reply)
+	return ok
+}
+
+/////////////////////////////////// API FOR RAFT /////////////////////////////////////////
+
+// GetState
+// return currentTerm and whether this server
+// believes it is the leader.
+func (rf *Raft) GetState() (int, bool) {
+
+	var term int
+	var isleader bool
+	// Your code here (3A).
+	return term, isleader
+}
+
+// Start
+// the service using Raft (e.g. a k/v server) wants to start
+// agreement on the next command to be appended to Raft's log. if this
+// server isn't the leader, returns false. otherwise start the
+// agreement and return immediately. there is no guarantee that this
+// command will ever be committed to the Raft log, since the leader
+// may fail or lose an election. even if the Raft instance has been killed,
+// this function should return gracefully.
+//
+// the first return value is the index that the command will appear at
+// if it's ever committed. the second return value is the current
+// term. the third return value is true if this server believes it is
+// the leader.
+func (rf *Raft) Start(command interface{}) (int, int, bool) {
+	index := -1
+	term := -1
+	isLeader := true
+
+	// Your code here (3B).
+
+	return index, term, isLeader
+}
+
+// Kill
+// the tester doesn't halt goroutines created by Raft after each test,
+// but it does call the Kill() method. your code can use killed() to
+// check whether Kill() has been called. the use of atomic avoids the
+// need for a lock.
+//
+// the issue is that long-running goroutines use memory and may chew
+// up CPU time, perhaps causing later tests to fail and generating
+// confusing debug output. any goroutine with a long-running loop
+// should call killed() to check whether it should stop.
+func (rf *Raft) Kill() {
+	atomic.StoreInt32(&rf.dead, 1)
+	// Your code here, if desired.
+}
+
+func (rf *Raft) killed() bool {
+	z := atomic.LoadInt32(&rf.dead)
+	return z == 1
 }
 
 // Make
