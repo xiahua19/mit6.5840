@@ -179,7 +179,47 @@ type RequestVoteReply struct {
 // RequestVote
 // example RequestVote RPC handler.
 func (rf *Raft) RequestVote(args *RequestVoteArgs, reply *RequestVoteReply) {
-	// Your code here (3A, 3B).
+	rf.mu.Lock()
+
+	// 1. reply false if term < currentTerm
+	if args.Term < rf.currentTerm {
+		reply.Term = rf.currentTerm
+		rf.mu.Unlock()
+		reply.VoteGranted = false
+		DPrintf("server %v reject the server %v vote: old term %v,\n\t args=%+v\n",
+			rf.me, args.CandidateId, args.Term, args)
+		return
+	}
+
+	// it hasn't vote, reset the voteFor
+	if args.Term > rf.currentTerm {
+		rf.voteFor = -1
+	}
+
+	// at least as up-to-date as receiver's log, grant vote
+	if rf.voteFor == -1 || rf.voteFor == args.CandidateId {
+		// to ensure that it hasn't grant a vote
+		if args.Term > rf.currentTerm ||
+			(args.LastLogIndex >= len(rf.log)-1 && args.LastLogTerm >= rf.log[len(rf.log)-1].Term) {
+			// 2. If voteFor is null or candidateId, and candidate's log is up-to-date as receiver's log, grant vote
+			rf.currentTerm = args.Term
+			reply.Term = rf.currentTerm
+			rf.voteFor = args.CandidateId
+			rf.role = Follower
+			rf.timeStamp = time.Now()
+
+			rf.mu.Unlock()
+			reply.VoteGranted = true
+			DPrintf("server %v grant vote for server %v\n\t args=%+v\n", rf.me, args.CandidateId, args)
+			return
+		}
+	} else {
+		DPrintf("server %v reject vote for server %v\n\t args=%+v\n", rf.me, args.CandidateId, args)
+	}
+
+	reply.Term = rf.currentTerm
+	rf.mu.Unlock()
+	reply.VoteGranted = false
 }
 
 // example code to send a RequestVote RPC to a server.
@@ -234,6 +274,46 @@ type AppendEntriesReply struct {
 	Success bool // true if follower contained entry matching PrevLogIndex and PrevLogTerm
 }
 
+func (rf *Raft) AppendEntries(args *AppendEntriesArgs, reply *AppendEntriesReply) {
+	rf.mu.Lock()
+
+	// a message send by old leader
+	if args.Term < rf.currentTerm {
+		// 1. Reply false if term < currentTerm
+		reply.Term = rf.currentTerm
+		rf.mu.Unlock()
+		reply.Success = false
+		return
+	}
+
+	// record the access timeStamp
+	rf.timeStamp = time.Now()
+
+	// the first message send by new leader
+	if args.Term > rf.currentTerm {
+		rf.currentTerm = args.Term
+		rf.voteFor = -1
+		rf.role = Follower
+	}
+
+	// heart beat function
+	if args.Entries == nil {
+		DPrintf("server %v receive leader &%v's heart beat", rf.me, args.LeaderId)
+	}
+
+	// check the PrevLogIndex and PrevLogTerm
+	if args.Entries != nil &&
+		(args.PrevLogIndex >= len(rf.log) || rf.log[args.PrevLogIndex].Term != args.PrevLogTerm) {
+		// 2. Reply false if log doesn't contain an entry at PrevLogIndex whose term matches PrevLogTerm
+		reply.Term = rf.currentTerm
+		rf.mu.Lock()
+		reply.Success = false
+		return
+	}
+
+	// 3. If an existing entry
+}
+
 // Start
 // the service using Raft (e.g. a k/v server) wants to start
 // agreement on the next command to be appended to Raft's log. if this
@@ -277,7 +357,10 @@ func (rf *Raft) killed() bool {
 	return z == 1
 }
 
+// Whether this server need a vote
+// (if timeout but not received any message, this sever start a vote for it)
 func (rf *Raft) ticker() {
+	rd := rand.New(rand.NewSource(int64(rf.me)))
 	for rf.killed() == false {
 		// Check if a leader election should be started.
 
@@ -285,6 +368,169 @@ func (rf *Raft) ticker() {
 		// milliseconds.
 		ms := 50 + (rand.Int63() % 300)
 		time.Sleep(time.Duration(ms) * time.Millisecond)
+
+		// lock the server to perform whether it need a vote
+		rf.mu.Lock()
+		if rf.role != Leader {
+			go rf.Elect()
+		}
+		rf.mu.Unlock()
+	}
+}
+
+// Elect
+// start an elect for sever itself
+// 1. lock the contents; 2. update the fields; 3. construct a RequestVote;
+// 4. unlock the contents; 5. send the RequestVote RPC to other servers
+func (rf *Raft) Elect() {
+	// lock
+	rf.mu.Lock()
+
+	// update the fields
+	rf.currentTerm += 1       // increase the term
+	rf.role = Candidate       // become a candidate
+	rf.voteFor = rf.me        // vote for itself
+	rf.voteCount = 1          // from itself
+	rf.timeStamp = time.Now() // vote for itself is also a message, need update the time
+
+	// construct a RequestVote
+	requestVoteArgs := &RequestVoteArgs{
+		Term:         rf.currentTerm,
+		CandidateId:  rf.me,
+		LastLogIndex: len(rf.log) - 1,
+		LastLogTerm:  rf.log[len(rf.log)-1].Term,
+	}
+
+	// unlock
+	rf.mu.Unlock()
+
+	// send the RequestVote for other servers
+	for i := 0; i < len(rf.peers); i++ {
+		if i == rf.me {
+			continue
+		}
+		go rf.collectVote(i, requestVoteArgs)
+	}
+}
+
+// collectVote
+// send and receive the RequestVote to other servers
+func (rf *Raft) collectVote(serverTo int, args *RequestVoteArgs) {
+	// send args to one server and get its answer
+	voteAnswer := rf.GetVoteAnswer(serverTo, args)
+	if !voteAnswer {
+		return
+	}
+
+	// check if it has archive half of vote
+	rf.muVote.Lock()
+	if rf.voteCount > len(rf.peers)/2 {
+		rf.muVote.Unlock()
+		return
+	}
+
+	// increase the vote count
+	rf.voteCount += 1
+	if rf.voteCount > len(rf.peers)/2 {
+		rf.mu.Lock()
+		// whether its role is modified by others
+		// if so, there is already a leader
+		if rf.role == Follower {
+			rf.mu.Unlock()
+			rf.muVote.Unlock()
+			return
+		}
+		rf.role = Leader
+		rf.mu.Unlock()
+		go rf.SendHeartBeats()
+	}
+	rf.muVote.Unlock()
+}
+
+// GetVoteAnswer
+// send and receive the RequestVote to other servers
+func (rf *Raft) GetVoteAnswer(serverTo int, args *RequestVoteArgs) bool {
+	sendArgs := *args
+	reply := RequestVoteReply{}
+	ok := rf.sendRequestVote(serverTo, &sendArgs, &reply)
+	// if RPC fail, return false
+	if !ok {
+		return false
+	}
+
+	rf.mu.Lock()
+	defer rf.mu.Unlock()
+
+	// check whether the currentTerm is modified
+	// if so, there is already a leader, deprecate current vote
+	if sendArgs.Term != rf.currentTerm {
+		return false
+	}
+
+	// if server reply a larger term, current vote is deprecated
+	if reply.Term > rf.currentTerm {
+		rf.currentTerm = reply.Term
+		rf.voteFor = -1
+		rf.role = Follower
+	}
+
+	// return the server's vote
+	return reply.VoteGranted
+}
+
+// SendHeartBeats
+// used by leaders to send heart beats to other servers
+func (rf *Raft) SendHeartBeats() {
+	DPrintf("server %v start send heart beats", rf.me)
+
+	for !rf.killed() {
+		rf.mu.Lock()
+		// if the server is dead or is note the leader, just return
+		if rf.role != Leader {
+			rf.mu.Unlock()
+			return
+		}
+
+		appendEntriesArgs := &AppendEntriesArgs{
+			Term:         rf.currentTerm,
+			LeaderId:     rf.me,
+			PrevLogIndex: 0,
+			PrevLogTerm:  0,
+			Entries:      nil,
+			LeaderCommit: rf.commitIndex,
+		}
+		rf.mu.Unlock()
+
+		for i := 0; i < len(rf.peers); i++ {
+			if i == rf.me {
+				continue
+			}
+			go rf.handleHeartBeat(i, appendEntriesArgs)
+		}
+
+		time.Sleep(time.Duration(HeartBeatTimeOut) * time.Millisecond)
+	}
+}
+
+func (rf *Raft) handleHeartBeat(serverTo int, args *AppendEntriesArgs) {
+	sendArgs := *args
+	reply := &AppendEntriesReply{}
+	ok := rf.sendAppendEntries(serverTo, &sendArgs, reply)
+	if !ok {
+		return
+	}
+
+	rf.mu.Lock()
+	defer rf.mu.Unlock()
+	if sendArgs.Term != rf.currentTerm {
+		return
+	}
+
+	if reply.Term > rf.currentTerm {
+		DPrintf("server %v old leader receive updated term %v, become follower", rf.me, reply.Term)
+		rf.currentTerm = reply.Term
+		rf.voteFor = -1
+		rf.role = Follower
 	}
 }
 
