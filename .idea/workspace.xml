@@ -1,0 +1,184 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="AutoImportSettings">
+    <option name="autoReloadType" value="ALL" />
+  </component>
+  <component name="ChangeListManager">
+    <list default="true" id="7b557440-f6e3-4c3a-a19e-39930535e624" name="Changes" comment="">
+      <change beforePath="$PROJECT_DIR$/.check-build" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/.gitignore" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/Makefile" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/.gitignore" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/go.mod" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/go.sum" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/kvraft/client.go" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/kvraft/common.go" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/kvraft/config.go" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/kvraft/server.go" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/kvraft/test_test.go" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/kvsrv/client.go" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/kvsrv/common.go" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/kvsrv/config.go" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/kvsrv/server.go" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/kvsrv/test_test.go" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/labgob/labgob.go" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/labgob/test_test.go" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/labrpc/labrpc.go" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/labrpc/test_test.go" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/main/diskvd.go" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/main/lockc.go" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/main/lockd.go" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/main/mr-out-0" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/main/mrcoordinator.go" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/main/mrsequential.go" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/main/mrworker.go" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/main/pbc.go" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/main/pbd.go" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/main/pg-being_ernest.txt" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/main/pg-dorian_gray.txt" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/main/pg-frankenstein.txt" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/main/pg-grimm.txt" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/main/pg-huckleberry_finn.txt" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/main/pg-metamorphosis.txt" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/main/pg-sherlock_holmes.txt" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/main/pg-tom_sawyer.txt" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/main/test-mr-many.sh" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/main/test-mr.sh" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/main/viewd.go" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/models/kv.go" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/mr/coordinator.go" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/mr/rpc.go" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/mr/worker.go" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/mrapps/crash.go" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/mrapps/early_exit.go" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/mrapps/indexer.go" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/mrapps/jobcount.go" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/mrapps/mtiming.go" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/mrapps/nocrash.go" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/mrapps/rtiming.go" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/mrapps/wc.go" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/porcupine/bitset.go" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/porcupine/checker.go" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/porcupine/model.go" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/porcupine/porcupine.go" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/porcupine/visualization.go" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/raft/config.go" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/raft/persister.go" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/raft/raft.go" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/raft/test_test.go" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/raft/util.go" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/shardctrler/client.go" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/shardctrler/common.go" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/shardctrler/config.go" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/shardctrler/server.go" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/shardctrler/test_test.go" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/shardkv/client.go" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/shardkv/common.go" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/shardkv/config.go" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/shardkv/server.go" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/shardkv/test_test.go" beforeDir="false" />
+    </list>
+    <option name="SHOW_DIALOG" value="false" />
+    <option name="HIGHLIGHT_CONFLICTS" value="true" />
+    <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
+    <option name="LAST_RESOLUTION" value="IGNORE" />
+  </component>
+  <component name="GOROOT" url="file:///usr/local/go" />
+  <component name="Git.Settings">
+    <option name="RECENT_GIT_ROOT_PATH" value="$PROJECT_DIR$" />
+  </component>
+  <component name="GitHubPullRequestSearchHistory">{
+  &quot;lastFilter&quot;: {
+    &quot;state&quot;: &quot;OPEN&quot;,
+    &quot;assignee&quot;: &quot;xiahua19&quot;
+  }
+}</component>
+  <component name="GithubPullRequestsUISettings">{
+  &quot;selectedUrlAndAccountId&quot;: {
+    &quot;url&quot;: &quot;https://github.com/xiahua19/mit6.5840.git&quot;,
+    &quot;accountId&quot;: &quot;bcd83cc9-5305-43ca-a05d-af087a4c85a7&quot;
+  }
+}</component>
+  <component name="GoLibraries">
+    <option name="urls">
+      <list>
+        <option value="file://$PROJECT_DIR$" />
+      </list>
+    </option>
+  </component>
+  <component name="HighlightingSettingsPerFile">
+    <setting file="file://$PROJECT_DIR$/src/raft/config.go" root0="SKIP_HIGHLIGHTING" />
+  </component>
+  <component name="ProjectColorInfo">{
+  &quot;associatedIndex&quot;: 6
+}</component>
+  <component name="ProjectId" id="2ijiyW5gz3pXJMdZQ9zwWbrAg4m" />
+  <component name="ProjectViewState">
+    <option name="hideEmptyMiddlePackages" value="true" />
+    <option name="showLibraryContents" value="true" />
+  </component>
+  <component name="PropertiesComponent">{
+  &quot;keyToString&quot;: {
+    &quot;RunOnceActivity.ShowReadmeOnStart&quot;: &quot;true&quot;,
+    &quot;RunOnceActivity.go.formatter.settings.were.checked&quot;: &quot;true&quot;,
+    &quot;RunOnceActivity.go.migrated.go.modules.settings&quot;: &quot;true&quot;,
+    &quot;RunOnceActivity.go.modules.automatic.dependencies.download&quot;: &quot;true&quot;,
+    &quot;RunOnceActivity.go.modules.go.list.on.any.changes.was.set&quot;: &quot;true&quot;,
+    &quot;git-widget-placeholder&quot;: &quot;main&quot;,
+    &quot;go.import.settings.migrated&quot;: &quot;true&quot;,
+    &quot;ignore.virus.scanning.warn.message&quot;: &quot;true&quot;,
+    &quot;last_opened_file_path&quot;: &quot;D:/mit6.5840&quot;,
+    &quot;node.js.detected.package.eslint&quot;: &quot;true&quot;,
+    &quot;node.js.selected.package.eslint&quot;: &quot;(autodetect)&quot;,
+    &quot;nodejs_package_manager_path&quot;: &quot;npm&quot;,
+    &quot;run.code.analysis.last.selected.profile&quot;: &quot;pProject Default&quot;,
+    &quot;settings.editor.selected.configurable&quot;: &quot;com.goide.configuration.GoLibrariesConfigurableProvider&quot;
+  }
+}</component>
+  <component name="RdControllerToolWindowsLayoutState" isNewUi="true">
+    <layout>
+      <window_info id="Bookmarks" show_stripe_button="false" side_tool="true" />
+      <window_info id="Merge Requests" show_stripe_button="false" />
+      <window_info id="Commit_Guest" show_stripe_button="false" />
+      <window_info id="Pull Requests" show_stripe_button="false" />
+      <window_info id="Learn" show_stripe_button="false" />
+      <window_info id="DFA" show_stripe_button="false" />
+      <window_info content_ui="combo" id="Project" order="0" weight="0.35919166" />
+      <window_info id="Commit" order="1" weight="0.25" />
+      <window_info id="Structure" order="2" side_tool="true" weight="0.25" />
+      <window_info anchor="bottom" id="Database Changes" show_stripe_button="false" />
+      <window_info anchor="bottom" id="TypeScript" show_stripe_button="false" />
+      <window_info anchor="bottom" id="TODO" show_stripe_button="false" />
+      <window_info anchor="bottom" id="File Transfer" show_stripe_button="false" />
+      <window_info anchor="bottom" id="Find" />
+      <window_info anchor="bottom" id="Version Control" order="0" />
+      <window_info anchor="bottom" id="Problems" order="1" />
+      <window_info anchor="bottom" id="Problems View" order="2" />
+      <window_info anchor="bottom" id="Terminal" order="3" weight="0.30453432" />
+      <window_info anchor="bottom" id="Services" order="4" />
+      <window_info anchor="right" id="Endpoints" show_stripe_button="false" />
+      <window_info anchor="right" id="make" show_stripe_button="false" side_tool="true" />
+      <window_info anchor="right" id="Coverage" show_stripe_button="false" side_tool="true" />
+      <window_info anchor="right" content_ui="combo" id="Notifications" order="0" weight="0.25" />
+      <window_info anchor="right" id="Database" order="2" weight="0.32975262" />
+      <window_info anchor="right" id="AIAssistant" order="3" weight="0.32975262" />
+      <window_info anchor="right" id="Gradle" order="5" weight="0.25" />
+      <window_info anchor="right" id="Maven" order="6" weight="0.25" />
+    </layout>
+  </component>
+  <component name="SharedIndexes">
+    <attachedChunks>
+      <set>
+        <option value="bundled-gosdk-33c477a475b1-e0158606a674-org.jetbrains.plugins.go.sharedIndexes.bundled-GO-241.18034.61" />
+        <option value="bundled-js-predefined-1d06a55b98c1-0b3e54e931b4-JavaScript-GO-241.18034.61" />
+      </set>
+    </attachedChunks>
+  </component>
+  <component name="SpellCheckerSettings" RuntimeDictionaries="0" Folders="0" CustomDictionaries="0" DefaultDictionary="application-level" UseSingleDictionary="true" transferred="true" />
+  <component name="TypeScriptGeneratedFilesManager">
+    <option name="version" value="3" />
+  </component>
+  <component name="VgoProject">
+    <settings-migrated>true</settings-migrated>
+  </component>
+</project>
