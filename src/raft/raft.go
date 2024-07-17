@@ -625,12 +625,17 @@ func (rf *Raft) AppendEntries(args *AppendEntriesArgs, reply *AppendEntriesReply
 
 	// TODO 5. If an existing entry conflicts with a new one (same index but different terms),
 	// 		   delete the existing entry and all that follow it
-	if len(args.Entries) != 0 && len(rf.log) > args.PrevLogIndex+1 && rf.log[args.PrevLogIndex+1].Term != args.Entries[0].Term {
-		rf.log = rf.log[:args.PrevLogIndex+1]
+	for idx, log := range args.Entries {
+		ridx := args.PrevLogIndex + 1 + idx
+		if ridx < len(rf.log) && rf.log[ridx].Term != log.Term {
+			rf.log = rf.log[:ridx]
+			rf.log = append(rf.log, args.Entries[idx:]...)
+			break
+		} else if ridx == len(rf.log) {
+			rf.log = append(rf.log, args.Entries[idx:]...)
+			break
+		}
 	}
-
-	// TODO 6. Append any new entries not already in the log
-	rf.log = append(rf.log, args.Entries...)
 
 	reply.Success = true
 	reply.Term = rf.currentTerm
@@ -735,6 +740,7 @@ func (rf *Raft) handleHeartBeat(serverTo int, args *AppendEntriesArgs) {
 					continue
 				}
 
+				// log from 0 to lastLogIndex has been replicated to this server
 				if rf.matchIndex[i] >= lastLogIndex && rf.log[lastLogIndex].Term == rf.currentTerm {
 					count += 1
 				}
@@ -750,6 +756,7 @@ func (rf *Raft) handleHeartBeat(serverTo int, args *AppendEntriesArgs) {
 		return
 	}
 
+	// this server is old, reset some fields
 	if reply.Term > rf.currentTerm {
 		rf.currentTerm = reply.Term
 		rf.voteFor = -1
@@ -759,6 +766,8 @@ func (rf *Raft) handleHeartBeat(serverTo int, args *AppendEntriesArgs) {
 		return
 	}
 
+	// follower does not have an item matching prevLogTerm at the prevLogIndex position
+	// or prevLogIndex does not exist
 	if reply.Term == rf.currentTerm && rf.role == Leader {
 		rf.nextIndex[serverTo] -= 1
 		rf.mu.Unlock()
