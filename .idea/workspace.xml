@@ -5,85 +5,15 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="7b557440-f6e3-4c3a-a19e-39930535e624" name="Changes" comment="">
-      <change beforePath="$PROJECT_DIR$/.check-build" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/.gitignore" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/Makefile" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/.gitignore" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/go.mod" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/go.sum" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/kvraft/client.go" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/kvraft/common.go" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/kvraft/config.go" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/kvraft/server.go" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/kvraft/test_test.go" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/kvsrv/client.go" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/kvsrv/common.go" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/kvsrv/config.go" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/kvsrv/server.go" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/kvsrv/test_test.go" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/labgob/labgob.go" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/labgob/test_test.go" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/labrpc/labrpc.go" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/labrpc/test_test.go" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/diskvd.go" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/lockc.go" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/lockd.go" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/mr-out-0" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/mrcoordinator.go" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/mrsequential.go" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/mrworker.go" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/pbc.go" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/pbd.go" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/pg-being_ernest.txt" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/pg-dorian_gray.txt" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/pg-frankenstein.txt" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/pg-grimm.txt" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/pg-huckleberry_finn.txt" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/pg-metamorphosis.txt" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/pg-sherlock_holmes.txt" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/pg-tom_sawyer.txt" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/test-mr-many.sh" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/test-mr.sh" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/viewd.go" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/models/kv.go" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/mr/coordinator.go" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/mr/rpc.go" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/mr/worker.go" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/mrapps/crash.go" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/mrapps/early_exit.go" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/mrapps/indexer.go" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/mrapps/jobcount.go" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/mrapps/mtiming.go" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/mrapps/nocrash.go" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/mrapps/rtiming.go" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/mrapps/wc.go" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/porcupine/bitset.go" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/porcupine/checker.go" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/porcupine/model.go" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/porcupine/porcupine.go" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/porcupine/visualization.go" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/raft/config.go" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/raft/persister.go" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/raft/raft.go" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/raft/test_test.go" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/raft/util.go" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/shardctrler/client.go" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/shardctrler/common.go" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/shardctrler/config.go" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/shardctrler/server.go" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/shardctrler/test_test.go" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/shardkv/client.go" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/shardkv/common.go" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/shardkv/config.go" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/shardkv/server.go" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/shardkv/test_test.go" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/raft/raft.go" beforeDir="false" afterPath="$PROJECT_DIR$/src/raft/raft.go" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
     <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
     <option name="LAST_RESOLUTION" value="IGNORE" />
   </component>
-  <component name="GOROOT" url="file:///usr/local/go" />
+  <component name="GOROOT" url="file://C:/Program Files/Go" />
   <component name="Git.Settings">
     <option name="RECENT_GIT_ROOT_PATH" value="$PROJECT_DIR$" />
   </component>
@@ -126,6 +56,7 @@
     &quot;RunOnceActivity.go.modules.go.list.on.any.changes.was.set&quot;: &quot;true&quot;,
     &quot;git-widget-placeholder&quot;: &quot;main&quot;,
     &quot;go.import.settings.migrated&quot;: &quot;true&quot;,
+    &quot;go.sdk.automatically.set&quot;: &quot;true&quot;,
     &quot;ignore.virus.scanning.warn.message&quot;: &quot;true&quot;,
     &quot;last_opened_file_path&quot;: &quot;D:/mit6.5840&quot;,
     &quot;node.js.detected.package.eslint&quot;: &quot;true&quot;,
