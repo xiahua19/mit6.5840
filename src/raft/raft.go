@@ -381,6 +381,7 @@ func (rf *Raft) RequestVote(args *RequestVoteArgs, reply *RequestVoteReply) {
 		rf.voteFor = args.CandidateId
 		rf.currentTerm = args.Term
 		rf.role = Follower
+		rf.persist()
 	}
 
 	// TODO 3. if leader's log is at least as up-to-date as receiver's log, grant vote
@@ -397,6 +398,7 @@ func (rf *Raft) RequestVote(args *RequestVoteArgs, reply *RequestVoteReply) {
 			rf.voteFor = args.CandidateId
 			rf.timeStamp = time.Now()
 			rf.role = Follower
+			rf.persist()
 			rf.mu.Unlock()
 
 			reply.Term = rf.currentTerm
@@ -543,6 +545,7 @@ func (rf *Raft) GetVoteAnswer(serverTo int, args *RequestVoteArgs) bool {
 		rf.currentTerm = reply.Term
 		rf.voteFor = -1
 		rf.role = Follower
+		rf.persist()
 	}
 
 	// return the server's vote
@@ -587,13 +590,13 @@ func (rf *Raft) sendRequestVote(server int, args *RequestVoteArgs, reply *Reques
 // (append an entry to it and reply)
 func (rf *Raft) AppendEntries(args *AppendEntriesArgs, reply *AppendEntriesReply) {
 	rf.mu.Lock()
+	defer rf.mu.Unlock()
 
 	// TODO 1. check if it is a message send by old leader
 	//         if so, need tell the sender the latest term and return false
 	if args.Term < rf.currentTerm {
 		// 1. Reply false if term < currentTerm
 		reply.Term = rf.currentTerm
-		rf.mu.Unlock()
 		reply.Success = false
 		return
 	}
@@ -616,22 +619,46 @@ func (rf *Raft) AppendEntries(args *AppendEntriesArgs, reply *AppendEntriesReply
 	}
 
 	// TODO 4. Reply false if log doesn’t contain an entry at prevLogIndex whose term matches prevLogTerm
-	if args.PrevLogIndex >= len(rf.log) || rf.log[args.PrevLogIndex].Term != args.PrevLogTerm {
+	//if args.PrevLogIndex >= len(rf.log) || rf.log[args.PrevLogIndex].Term != args.PrevLogTerm {
+	//	reply.Term = rf.currentTerm
+	//	rf.mu.Unlock()
+	//	reply.Success = false
+	//	return
+	//}
+	if args.PrevLogIndex >= len(rf.log) {
+		reply.XLen = len(rf.log) // the length of this follower's log
+		reply.Success = false
 		reply.Term = rf.currentTerm
-		rf.mu.Unlock()
+		reply.XTerm = -1 // there is no log at PrevLogIndex
+		return
+	} else if rf.log[args.PrevLogIndex].Term != args.PrevLogTerm {
+		reply.XTerm = rf.log[args.PrevLogIndex].Term // term not match
+
+		index := args.PrevLogIndex
+		for rf.log[index].Term == reply.XTerm {
+			index -= 1
+		}
+		reply.XIndex = index + 1 // the index of first log with term equal to reply.XTerm
+		reply.Term = rf.currentTerm
 		reply.Success = false
 		return
 	}
 
 	// TODO 5. If an existing entry conflicts with a new one (same index but different terms),
 	// 		   delete the existing entry and all that follow it
-	if len(args.Entries) != 0 && len(rf.log) > args.PrevLogIndex+1 && rf.log[args.PrevLogIndex+1].Term != args.Entries[0].Term {
-		rf.log = rf.log[:args.PrevLogIndex+1]
-	}
-
 	// TODO 6. Append any new entries not already in the log
-	rf.log = append(rf.log, args.Entries...)
-
+	for idx, log := range args.Entries {
+		ridx := args.PrevLogIndex + 1 + idx
+		if ridx < len(rf.log) && rf.log[ridx].Term != log.Term {
+			rf.log = rf.log[:ridx]
+			rf.log = append(rf.log, args.Entries[idx:]...)
+			break
+		} else if ridx == len(rf.log) {
+			rf.log = append(rf.log, args.Entries[idx:]...)
+			break
+		}
+	}
+	rf.persist()
 	reply.Success = true
 	reply.Term = rf.currentTerm
 
@@ -639,7 +666,6 @@ func (rf *Raft) AppendEntries(args *AppendEntriesArgs, reply *AppendEntriesReply
 	if args.LeaderCommit > rf.commitIndex {
 		rf.commitIndex = int(math.Min(float64(args.LeaderCommit), float64(len(rf.log)-1)))
 	}
-	rf.mu.Unlock()
 }
 
 // SendHeartBeats
@@ -734,7 +760,7 @@ func (rf *Raft) handleHeartBeat(serverTo int, args *AppendEntriesArgs) {
 				if i == rf.me {
 					continue
 				}
-
+				// log from 0 to lastLogIndex has been replicated to this server
 				if rf.matchIndex[i] >= lastLogIndex && rf.log[lastLogIndex].Term == rf.currentTerm {
 					count += 1
 				}
@@ -750,17 +776,52 @@ func (rf *Raft) handleHeartBeat(serverTo int, args *AppendEntriesArgs) {
 		return
 	}
 
+	// this server is old, reset some fields
 	if reply.Term > rf.currentTerm {
 		rf.currentTerm = reply.Term
 		rf.voteFor = -1
 		rf.role = Follower
 		rf.timeStamp = time.Now()
+		rf.persist()
 		rf.mu.Unlock()
 		return
 	}
 
+	// follower does not have an item matching prevLogTerm at the prevLogIndex position
+	// or prevLogIndex does not exist
+	//if reply.Term == rf.currentTerm && rf.role == Leader {
+	//	rf.nextIndex[serverTo] -= 1
+	//	rf.mu.Unlock()
+	//	return
+	//}
 	if reply.Term == rf.currentTerm && rf.role == Leader {
-		rf.nextIndex[serverTo] -= 1
+		// PrevLogIndex not in the follower
+		if reply.Term == -1 {
+			rf.nextIndex[serverTo] = reply.XLen
+			rf.mu.Unlock()
+			return
+		}
+		// PrevLogTerm not match
+		index := rf.nextIndex[serverTo] - 1
+		for index > 0 && rf.log[index].Term > reply.XTerm {
+			index -= 1
+		}
+
+		// follower contains XTerm , set nextIndex to the next to the last log which term == XTerm
+		if rf.log[index].Term == reply.XTerm {
+			if index+1 > 0 {
+				rf.nextIndex[serverTo] = index + 1
+			} else {
+				rf.nextIndex[serverTo] = 1
+			}
+		} else {
+			// follower doesn't contain XTerm
+			if reply.XIndex > 0 {
+				rf.nextIndex[serverTo] = reply.XIndex
+			} else {
+				rf.nextIndex[serverTo] = 1
+			}
+		}
 		rf.mu.Unlock()
 		return
 	}
@@ -809,6 +870,7 @@ func (rf *Raft) Start(command interface{}) (int, int, bool) {
 		Cmd:  command,
 	}
 	rf.log = append(rf.log, *newEntry)
+	rf.persist()
 	return len(rf.log) - 1, rf.currentTerm, true
 }
 
@@ -875,13 +937,13 @@ func Make(peers []*labrpc.ClientEnd, me int,
 	rf.role = Follower
 	rf.applyCh = applyCh
 
+	// initialize from state persisted before a crash
+	//rf.readSnapshot(persister.ReadSnapshot())
+	rf.readPersist(persister.ReadRaftState())
+
 	for i := 0; i < len(rf.nextIndex); i++ {
 		rf.nextIndex[i] = 1
 	}
-
-	// initialize from state persisted before a crash
-	//rf.readSnapshot(persister.ReadSnapshot())
-	//rf.readPersist(persister.ReadRaftState())
 
 	// start ticker goroutine to start elections
 	go rf.ticker()
