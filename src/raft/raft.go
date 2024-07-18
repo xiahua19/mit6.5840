@@ -203,8 +203,8 @@ func (rf *Raft) persist() {
 	e.Encode(rf.voteFor)
 	e.Encode(rf.currentTerm)
 	e.Encode(rf.log)
-	e.Encode(rf.lastIncludedIndex)
-	e.Encode(rf.lastIncludedTerm)
+	//e.Encode(rf.lastIncludedIndex)
+	//e.Encode(rf.lastIncludedTerm)
 	raftstate := w.Bytes()
 	rf.persister.Save(raftstate, rf.snapShot)
 }
@@ -228,9 +228,9 @@ func (rf *Raft) readPersist(data []byte) {
 	var lastIncludedTerm int
 	if d.Decode(&votedFor) != nil ||
 		d.Decode(&currentTerm) != nil ||
-		d.Decode(&log) != nil ||
-		d.Decode(&lastIncludedIndex) != nil ||
-		d.Decode(&lastIncludedTerm) != nil {
+		d.Decode(&log) != nil {
+		//d.Decode(&lastIncludedIndex) != nil ||
+		//d.Decode(&lastIncludedTerm) != nil {
 		DPrintf("readPresist railed\n")
 	} else {
 		rf.voteFor = votedFor
@@ -381,6 +381,7 @@ func (rf *Raft) RequestVote(args *RequestVoteArgs, reply *RequestVoteReply) {
 		rf.voteFor = args.CandidateId
 		rf.currentTerm = args.Term
 		rf.role = Follower
+		rf.persist()
 	}
 
 	// TODO 3. if leader's log is at least as up-to-date as receiver's log, grant vote
@@ -397,6 +398,7 @@ func (rf *Raft) RequestVote(args *RequestVoteArgs, reply *RequestVoteReply) {
 			rf.voteFor = args.CandidateId
 			rf.timeStamp = time.Now()
 			rf.role = Follower
+			rf.persist()
 			rf.mu.Unlock()
 
 			reply.Term = rf.currentTerm
@@ -543,6 +545,7 @@ func (rf *Raft) GetVoteAnswer(serverTo int, args *RequestVoteArgs) bool {
 		rf.currentTerm = reply.Term
 		rf.voteFor = -1
 		rf.role = Follower
+		rf.persist()
 	}
 
 	// return the server's vote
@@ -606,6 +609,7 @@ func (rf *Raft) AppendEntries(args *AppendEntriesArgs, reply *AppendEntriesReply
 		rf.currentTerm = args.Term
 		rf.voteFor = -1
 		rf.role = Follower
+		rf.persist()
 	}
 
 	// heart beat function
@@ -616,10 +620,24 @@ func (rf *Raft) AppendEntries(args *AppendEntriesArgs, reply *AppendEntriesReply
 	}
 
 	// TODO 4. Reply false if log doesn’t contain an entry at prevLogIndex whose term matches prevLogTerm
-	if args.PrevLogIndex >= len(rf.log) || rf.log[args.PrevLogIndex].Term != args.PrevLogTerm {
+	if args.PrevLogIndex >= len(rf.log) {
 		reply.Term = rf.currentTerm
 		rf.mu.Unlock()
 		reply.Success = false
+		reply.XTerm = -1         // there is no log at PrevLogIndex
+		reply.XLen = len(rf.log) // the length of this follower's log
+		return
+	} else if rf.log[args.PrevLogIndex].Term != args.PrevLogTerm {
+		reply.Term = rf.currentTerm
+		rf.mu.Unlock()
+		reply.Success = false
+		reply.XTerm = rf.log[args.PrevLogIndex].Term // term not match
+
+		index := args.PrevLogIndex
+		for rf.log[index].Term == reply.XTerm {
+			index -= 1
+		}
+		reply.XIndex = index + 1 // the index of first log with term equal to reply.XTerm
 		return
 	}
 
@@ -636,6 +654,8 @@ func (rf *Raft) AppendEntries(args *AppendEntriesArgs, reply *AppendEntriesReply
 			break
 		}
 	}
+
+	rf.persist()
 
 	reply.Success = true
 	reply.Term = rf.currentTerm
@@ -762,6 +782,7 @@ func (rf *Raft) handleHeartBeat(serverTo int, args *AppendEntriesArgs) {
 		rf.voteFor = -1
 		rf.role = Follower
 		rf.timeStamp = time.Now()
+		rf.persist()
 		rf.mu.Unlock()
 		return
 	}
@@ -769,9 +790,24 @@ func (rf *Raft) handleHeartBeat(serverTo int, args *AppendEntriesArgs) {
 	// follower does not have an item matching prevLogTerm at the prevLogIndex position
 	// or prevLogIndex does not exist
 	if reply.Term == rf.currentTerm && rf.role == Leader {
-		rf.nextIndex[serverTo] -= 1
-		rf.mu.Unlock()
-		return
+		// PrevLogIndex not in the follower
+		if reply.Term == -1 {
+			rf.nextIndex[serverTo] = reply.XLen
+			return
+		}
+		// PrevLogTerm not match
+		index := rf.nextIndex[serverTo] - 1
+		for index > 0 && rf.log[index].Term > reply.XTerm {
+			index -= 1
+		}
+
+		// follower contains XTerm , set nextIndex to the next to the last log which term == XTerm
+		if rf.log[index].Term == reply.XTerm {
+			rf.nextIndex[serverTo] = index + 1
+		} else {
+			// follower doesn't contain XTerm
+			rf.nextIndex[serverTo] = reply.XIndex
+		}
 	}
 }
 
@@ -818,6 +854,9 @@ func (rf *Raft) Start(command interface{}) (int, int, bool) {
 		Cmd:  command,
 	}
 	rf.log = append(rf.log, *newEntry)
+
+	rf.persist()
+
 	return len(rf.log) - 1, rf.currentTerm, true
 }
 
@@ -884,13 +923,13 @@ func Make(peers []*labrpc.ClientEnd, me int,
 	rf.role = Follower
 	rf.applyCh = applyCh
 
+	// initialize from state persisted before a crash
+	//rf.readSnapshot(persister.ReadSnapshot())
+	rf.readPersist(persister.ReadRaftState())
+
 	for i := 0; i < len(rf.nextIndex); i++ {
 		rf.nextIndex[i] = 1
 	}
-
-	// initialize from state persisted before a crash
-	//rf.readSnapshot(persister.ReadSnapshot())
-	//rf.readPersist(persister.ReadRaftState())
 
 	// start ticker goroutine to start elections
 	go rf.ticker()
