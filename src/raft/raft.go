@@ -224,8 +224,8 @@ func (rf *Raft) readPersist(data []byte) {
 	var votedFor int
 	var currentTerm int
 	var log []Entry
-	var lastIncludedIndex int
-	var lastIncludedTerm int
+	// var lastIncludedIndex int
+	// var lastIncludedTerm int
 	if d.Decode(&votedFor) != nil ||
 		d.Decode(&currentTerm) != nil ||
 		d.Decode(&log) != nil {
@@ -237,10 +237,10 @@ func (rf *Raft) readPersist(data []byte) {
 		rf.currentTerm = currentTerm
 		rf.log = log
 
-		rf.lastIncludedIndex = lastIncludedIndex
-		rf.lastIncludedTerm = lastIncludedTerm
-		rf.commitIndex = lastIncludedIndex
-		rf.lastApplied = lastIncludedIndex
+		// rf.lastIncludedIndex = lastIncludedIndex
+		// rf.lastIncludedTerm = lastIncludedTerm
+		// rf.commitIndex = lastIncludedIndex
+		// rf.lastApplied = lastIncludedIndex
 		DPrintf("server %v readPersist success\n", rf.me)
 	}
 }
@@ -801,11 +801,11 @@ func (rf *Raft) handleHeartBeat(serverTo int, args *AppendEntriesArgs) {
 			index -= 1
 		}
 
-		// follower contains XTerm , set nextIndex to the next to the last log which term == XTerm
+		// leader contains XTerm , set nextIndex to the next to the last log which term == XTerm
 		if rf.log[index].Term == reply.XTerm {
 			rf.nextIndex[serverTo] = index + 1
 		} else {
-			// follower doesn't contain XTerm
+			// leader doesn't contain XTerm, set nextIndex to the index of the first log which term = XTerm
 			rf.nextIndex[serverTo] = reply.XIndex
 		}
 	}
