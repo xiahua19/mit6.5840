@@ -7,9 +7,20 @@ import (
 	"log"
 	"sync"
 	"sync/atomic"
+	"time"
 )
 
 const Debug = false
+
+const (
+	HandleOpTimeOut = time.Millisecond * 500
+)
+
+const (
+	OpGet int = iota
+	OpPut
+	OpAppend
+)
 
 func DPrintf(format string, a ...interface{}) (n int, err error) {
 	if Debug {
@@ -18,28 +29,51 @@ func DPrintf(format string, a ...interface{}) (n int, err error) {
 	return
 }
 
-
 type Op struct {
-	// Your definitions here.
-	// Field names must start with capital letters,
-	// otherwise RPC will break.
+	OpType     int
+	Key        string
+	Value      string
+	Seq        uint64
+	Identifier int64
 }
 
 type KVServer struct {
-	mu      sync.Mutex
-	me      int
-	rf      *raft.Raft
-	applyCh chan raft.ApplyMsg
-	dead    int32 // set by Kill()
+	mu         sync.Mutex
+	me         int
+	rf         *raft.Raft
+	applyCh    chan raft.ApplyMsg
+	dead       int32                // set by Kill()
+	waiCh      map[int]*chan result // map startIndex to ch (RPC handler channel which wait commit info)
+	historyMap map[int64]*result    // map identifier to *result
 
 	maxraftstate int // snapshot if log grows this big
-
-	// Your definitions here.
+	maxMapLen    int
+	db           map[string]string
 }
 
+type result struct {
+	LastSeq uint64 // sequence number
+	ResTerm int    // the term when apply is committed
+	Err     Err
+	Value   string
+}
 
 func (kv *KVServer) Get(args *GetArgs, reply *GetReply) {
-	// Your code here.
+	_, isLeader := kv.rf.GetState()
+	if !isLeader {
+		reply.Err = ErrNotLeader
+		return
+	}
+
+	opArgs := &Op{
+		OpType:     OpGet,
+		Seq:        args.Seq,
+		Key:        args.Key,
+		Identifier: args.Identifier,
+	}
+
+	res := kv.HandleOp(opArgs)
+	reply.Err = res.Err
 }
 
 func (kv *KVServer) PutAppend(args *PutAppendArgs, reply *PutAppendReply) {
