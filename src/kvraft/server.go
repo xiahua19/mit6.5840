@@ -4,13 +4,10 @@ import (
 	"6.5840/labgob"
 	"6.5840/labrpc"
 	"6.5840/raft"
-	"log"
 	"sync"
 	"sync/atomic"
 	"time"
 )
-
-const Debug = false
 
 const (
 	HandleOpTimeOut = time.Millisecond * 500
@@ -21,13 +18,6 @@ const (
 	OpPut
 	OpAppend
 )
-
-func DPrintf(format string, a ...interface{}) (n int, err error) {
-	if Debug {
-		log.Printf(format, a...)
-	}
-	return
-}
 
 type Op struct {
 	OpType     int
@@ -74,10 +64,156 @@ func (kv *KVServer) Get(args *GetArgs, reply *GetReply) {
 
 	res := kv.HandleOp(opArgs)
 	reply.Err = res.Err
+	reply.Value = res.Value
+}
+
+func (kv *KVServer) HandleOp(opArgs *Op) (res result) {
+	startIndex, startTerm, isLeader := kv.rf.Start(*opArgs)
+	if !isLeader {
+		return result{
+			Err:   ErrNotLeader,
+			Value: "",
+		}
+	}
+
+	kv.mu.Lock()
+	newCh := make(chan result)
+	kv.waiCh[startIndex] = &newCh
+	kv.mu.Unlock()
+
+	defer func() {
+		kv.mu.Lock()
+		delete(kv.waiCh, startIndex)
+		close(newCh)
+		kv.mu.Unlock()
+	}()
+
+	select {
+	case <-time.After(HandleOpTimeOut):
+		res.Err = ErrHandleOpTimeOut
+		return
+	case msg, success := <-newCh:
+		if success && msg.ResTerm == startTerm {
+			res = msg
+			return
+		} else if !success {
+			res.Err = ErrChanClose
+			return
+		} else {
+			res.Err = ErrLeaderOutDated
+			res.Value = ""
+			return
+		}
+	}
 }
 
 func (kv *KVServer) PutAppend(args *PutAppendArgs, reply *PutAppendReply) {
-	// Your code here.
+	_, isLeader := kv.rf.GetState()
+	if !isLeader {
+		reply.Err = ErrNotLeader
+		return
+	}
+
+	opArgs := &Op{
+		Seq:        args.Seq,
+		Key:        args.Key,
+		Value:      args.Value,
+		Identifier: args.Identifier,
+	}
+
+	if args.Op == "Put" {
+		opArgs.OpType = OpPut
+	} else {
+		opArgs.OpType = OpAppend
+	}
+
+	res := kv.HandleOp(opArgs)
+	reply.Err = res.Err
+}
+
+func (kv *KVServer) ApplyHandler() {
+	for !kv.killed() {
+		log := <-kv.applyCh
+
+		if log.CommandValid {
+			op := log.Command.(Op)
+			kv.mu.Lock()
+
+			var res result
+			needApply := false
+
+			if hisMap, exist := kv.historyMap[op.Identifier]; exist {
+				if hisMap.LastSeq == op.Seq {
+					res = *hisMap
+				} else if hisMap.LastSeq < op.Seq {
+					needApply = true
+				}
+			} else {
+				needApply = true
+			}
+
+			_, isLeader := kv.rf.GetState()
+
+			if needApply {
+				res = kv.DBExecute(&op, isLeader)
+				res.ResTerm = log.SnapshotTerm
+				kv.historyMap[op.Identifier] = &res
+			}
+
+			if !isLeader {
+				kv.mu.Unlock()
+				continue
+			}
+
+			ch, exist := kv.waiCh[log.CommandIndex]
+			if !exist {
+				kv.mu.Unlock()
+				continue
+			}
+
+			kv.mu.Unlock()
+
+			func() {
+				defer func() {
+					if recover() != nil {
+
+					}
+				}()
+				res.ResTerm = log.SnapshotTerm
+				*ch <- res
+			}()
+		}
+	}
+}
+
+func (kv *KVServer) DBExecute(op *Op, isLeader bool) (res result) {
+	res.LastSeq = op.Seq
+
+	switch op.OpType {
+	case OpGet:
+		val, exist := kv.db[op.Key]
+		if exist {
+			res.Value = val
+			return
+		} else {
+			res.Err = ErrKeyNotExist
+			res.Value = ""
+			return
+		}
+	case OpPut:
+		kv.db[op.Key] = op.Value
+		return
+	case OpAppend:
+		val, exist := kv.db[op.Key]
+		if exist {
+			kv.db[op.Key] = val + op.Value
+			return
+		} else {
+			kv.db[op.Key] = op.Value
+			return
+		}
+	}
+	return
 }
 
 // the tester calls Kill() when a KVServer instance won't
@@ -126,6 +262,11 @@ func StartKVServer(servers []*labrpc.ClientEnd, me int, persister *raft.Persiste
 	kv.rf = raft.Make(servers, me, persister, kv.applyCh)
 
 	// You may need initialization code here.
+	kv.historyMap = make(map[int64]*result)
+	kv.db = make(map[string]string)
+	kv.waiCh = make(map[int]*chan result)
+
+	go kv.ApplyHandler()
 
 	return kv
 }
