@@ -50,7 +50,7 @@ const (
 )
 
 ///////////////////////////////////////////////////////////////////////////////////////
-///////////////////////// DEFINED MESSAGE, ARGS, REPLY STRUCT /////////////////////////
+///// DEFINED ENTRY, APPLYMSG, REQUESTVOTE, APPENDENTRIES, INSTALLSNAPSHOT STRUCT /////
 ///////////////////////////////////////////////////////////////////////////////////////
 
 // Entry (log)
@@ -186,7 +186,7 @@ type Raft struct {
 	heartTimer *time.Timer
 	voteTimer  *time.Timer
 	rd         *rand.Rand
-	condAppy   *sync.Cond
+	condApply  *sync.Cond
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////
@@ -274,6 +274,8 @@ func (rf *Raft) Snapshot(index int, snapshot []byte) {
 	defer rf.mu.Unlock()
 
 	// TODO 1. check the snapshot's validation
+	// NOTE: snapshot's index must less than or equal to commitIndex, otherwise it may contain uncommitted logs
+	//		 snapshot's index must greater than or equal to rf.lastIncludedIndex, otherwise it may be an old snapshot
 	if rf.commitIndex < index || index <= rf.lastIncludedIndex {
 		return
 	}
@@ -427,11 +429,6 @@ func (rf *Raft) InstallSnapshot(args *InstallSnapshotArgs, reply *InstallSnapsho
 func (rf *Raft) sendInstallSnapshot(serverTo int, args *InstallSnapshotArgs, reply *InstallSnapshotReply) bool {
 	ok := rf.peers[serverTo].Call("Raft.InstallSnapshot", args, reply)
 	return ok
-}
-
-func (rf *Raft) ResetTimer() {
-	rdTimeOut := GetRandomElectTimeOut(rf.rd)
-	rf.heartTimer.Reset(time.Duration(rdTimeOut) * time.Millisecond)
 }
 
 //////////////////////////////// VOTE AND ELECT ///////////////////////////////////////
@@ -737,7 +734,7 @@ func (rf *Raft) AppendEntries(args *AppendEntriesArgs, reply *AppendEntriesReply
 	// TODO 7. If leaderCommit > commitIndex, set commitIndex = min(leaderCommit, index of last new entry)
 	if args.LeaderCommit > rf.commitIndex {
 		rf.commitIndex = int(math.Min(float64(args.LeaderCommit), float64(rf.VirtualLogIdx(len(rf.log)-1))))
-		rf.condAppy.Signal()
+		rf.condApply.Signal()
 	}
 }
 
@@ -858,7 +855,7 @@ func (rf *Raft) handleHeartBeat(serverTo int, args *AppendEntriesArgs) {
 			lastLogIndex -= 1
 		}
 		rf.commitIndex = lastLogIndex
-		rf.condAppy.Signal()
+		rf.condApply.Signal()
 		return
 	}
 
@@ -989,7 +986,7 @@ func (rf *Raft) CommitChecker() {
 		rf.mu.Lock()
 
 		for rf.commitIndex <= rf.lastApplied {
-			rf.condAppy.Wait()
+			rf.condApply.Wait()
 		}
 
 		msgBuf := make([]*ApplyMsg, 0, rf.commitIndex-rf.lastApplied)
@@ -1056,7 +1053,7 @@ func Make(peers []*labrpc.ClientEnd, me int,
 	rf.matchIndex = make([]int, len(peers))
 	rf.role = Follower
 	rf.applyCh = applyCh
-	rf.condAppy = sync.NewCond(&rf.mu)
+	rf.condApply = sync.NewCond(&rf.mu)
 	rf.rd = rand.New(rand.NewSource(int64(rf.me)))
 	rf.heartTimer = time.NewTimer(0)
 	rf.voteTimer = time.NewTimer(0)
