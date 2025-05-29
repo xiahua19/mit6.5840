@@ -9,16 +9,37 @@ package raft
 // test with the original before submitting.
 //
 
-import "sync"
+import (
+	"os"
+	"sync"
+)
 
 type Persister struct {
-	mu        sync.Mutex
-	raftstate []byte
-	snapshot  []byte
+	mu            sync.Mutex
+	raftstate     []byte
+	snapshot      []byte
+	raftStatePath string
+	snapshotPath  string
 }
 
+// MakeDefaultPersister creates a Persister with default file paths.
 func MakePersister() *Persister {
-	return &Persister{}
+	return MakePersisterWithPath("raftstate.bin", "snapshot.bin")
+}
+
+// MakePersister creates a Persister with specified file paths and loads data if files exist.
+func MakePersisterWithPath(raftStatePath, snapshotPath string) *Persister {
+	p := &Persister{
+		raftStatePath: raftStatePath,
+		snapshotPath:  snapshotPath,
+	}
+	// Attempt to load data from files if they exist
+	if _, err := os.Stat(raftStatePath); err == nil {
+		if err := p.LoadFromFile(); err != nil {
+			DPrintf("failed to load data from file")
+		}
+	}
+	return p
 }
 
 func clone(orig []byte) []byte {
@@ -30,7 +51,7 @@ func clone(orig []byte) []byte {
 func (ps *Persister) Copy() *Persister {
 	ps.mu.Lock()
 	defer ps.mu.Unlock()
-	np := MakePersister()
+	np := MakePersisterWithPath(ps.raftStatePath, ps.snapshotPath)
 	np.raftstate = ps.raftstate
 	np.snapshot = ps.snapshot
 	return np
@@ -50,11 +71,19 @@ func (ps *Persister) RaftStateSize() int {
 
 // Save both Raft state and K/V snapshot as a single atomic action,
 // to help avoid them getting out of sync.
-func (ps *Persister) Save(raftstate []byte, snapshot []byte) {
+func (ps *Persister) Save(raftstate []byte, snapshot []byte) error {
 	ps.mu.Lock()
 	defer ps.mu.Unlock()
 	ps.raftstate = clone(raftstate)
 	ps.snapshot = clone(snapshot)
+	// Write to files
+	if err := os.WriteFile(ps.raftStatePath, raftstate, 0644); err != nil {
+		return err
+	}
+	if err := os.WriteFile(ps.snapshotPath, snapshot, 0644); err != nil {
+		return err
+	}
+	return nil
 }
 
 func (ps *Persister) ReadSnapshot() []byte {
@@ -67,4 +96,21 @@ func (ps *Persister) SnapshotSize() int {
 	ps.mu.Lock()
 	defer ps.mu.Unlock()
 	return len(ps.snapshot)
+}
+
+// LoadFromFile loads raftstate and snapshot from files.
+func (ps *Persister) LoadFromFile() error {
+	ps.mu.Lock()
+	defer ps.mu.Unlock()
+	raftstate, err := os.ReadFile(ps.raftStatePath)
+	if err != nil {
+		return err
+	}
+	snapshot, err := os.ReadFile(ps.snapshotPath)
+	if err != nil {
+		return err
+	}
+	ps.raftstate = raftstate
+	ps.snapshot = snapshot
+	return nil
 }
