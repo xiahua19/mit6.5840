@@ -1,12 +1,17 @@
 package kvraft
 
 import (
-	"6.5840/labgob"
-	"6.5840/labrpc"
-	"6.5840/raft"
+	"fmt"
+	"log"
+	"path/filepath"
 	"sync"
 	"sync/atomic"
 	"time"
+
+	"6.5840/backend"
+	"6.5840/labgob"
+	"6.5840/labrpc"
+	"6.5840/raft"
 )
 
 const (
@@ -18,6 +23,21 @@ const (
 	OpPut
 	OpAppend
 )
+
+type BackendType int
+
+const (
+	Bolt BackendType = iota
+	LevelDB
+	Memory
+)
+
+type KVBackend interface {
+	Put(key, value string) error
+	Get(key string) (string, error)
+	Delete(key string) error
+	GetSnapshot() ([]byte, error)
+}
 
 type Op struct {
 	OpType     int
@@ -38,7 +58,7 @@ type KVServer struct {
 
 	maxraftstate int // snapshot if log grows this big
 	maxMapLen    int
-	db           map[string]string
+	db           KVBackend
 }
 
 type result struct {
@@ -191,8 +211,8 @@ func (kv *KVServer) DBExecute(op *Op, isLeader bool) (res result) {
 
 	switch op.OpType {
 	case OpGet:
-		val, exist := kv.db[op.Key]
-		if exist {
+		val, exist := kv.db.Get(op.Key)
+		if exist == nil {
 			res.Value = val
 			return
 		} else {
@@ -201,15 +221,15 @@ func (kv *KVServer) DBExecute(op *Op, isLeader bool) (res result) {
 			return
 		}
 	case OpPut:
-		kv.db[op.Key] = op.Value
+		kv.db.Put(op.Key, op.Value)
 		return
 	case OpAppend:
-		val, exist := kv.db[op.Key]
-		if exist {
-			kv.db[op.Key] = val + op.Value
+		val, exist := kv.db.Get(op.Key)
+		if exist == nil {
+			kv.db.Put(op.Key, val+op.Value)
 			return
 		} else {
-			kv.db[op.Key] = op.Value
+			kv.db.Put(op.Key, op.Value)
 			return
 		}
 	}
@@ -247,7 +267,7 @@ func (kv *KVServer) killed() bool {
 // you don't need to snapshot.
 // StartKVServer() must return quickly, so it should start goroutines
 // for any long-running work.
-func StartKVServer(servers []*labrpc.ClientEnd, me int, persister *raft.Persister, maxraftstate int) *KVServer {
+func StartKVServer(servers []*labrpc.ClientEnd, me int, persister *raft.Persister, maxraftstate int, backendtype BackendType) *KVServer {
 	// call labgob.Register on structures you want
 	// Go's RPC library to marshall/unmarshall.
 	labgob.Register(Op{})
@@ -263,7 +283,22 @@ func StartKVServer(servers []*labrpc.ClientEnd, me int, persister *raft.Persiste
 
 	// You may need initialization code here.
 	kv.historyMap = make(map[int64]*result)
-	kv.db = make(map[string]string)
+
+	var err error
+	if backendtype == Bolt {
+		kv.db, err = backend.NewBoltdbBackend(filepath.Join("./dbfile", fmt.Sprintf("bolt-%d", me)))
+	} else if backendtype == LevelDB {
+		kv.db, err = backend.NewLeveldbBackend(filepath.Join("./dbfile", fmt.Sprintf("level-%d", me)))
+	} else if backendtype == Memory {
+		kv.db = backend.NewMemoryBackend()
+	} else {
+		log.Panicf("unknown backend type: %d", backendtype)
+	}
+
+	if err != nil {
+		log.Panic(err)
+	}
+
 	kv.waiCh = make(map[int]*chan result)
 
 	go kv.ApplyHandler()
