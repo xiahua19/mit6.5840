@@ -10,8 +10,12 @@ package raft
 //
 
 import (
+	"fmt"
 	"os"
+	"path/filepath"
 	"sync"
+
+	"github.com/google/uuid"
 )
 
 type Persister struct {
@@ -24,7 +28,8 @@ type Persister struct {
 
 // MakeDefaultPersister creates a Persister with default file paths.
 func MakePersister() *Persister {
-	return MakePersisterWithPath("raftstate.bin", "snapshot.bin")
+	return MakePersisterWithPath(filepath.Join("./file", fmt.Sprintf("raftstate-%s.bin", uuid.New().String())),
+		filepath.Join("./file", fmt.Sprintf("snapshot-%s.bin", uuid.New().String())))
 }
 
 // MakePersister creates a Persister with specified file paths and loads data if files exist.
