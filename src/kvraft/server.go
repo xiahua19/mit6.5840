@@ -12,6 +12,7 @@ import (
 	"6.5840/labgob"
 	"6.5840/labrpc"
 	"6.5840/raft"
+	"github.com/google/uuid"
 )
 
 const (
@@ -286,9 +287,9 @@ func StartKVServer(servers []*labrpc.ClientEnd, me int, persister *raft.Persiste
 
 	var err error
 	if backendtype == Bolt {
-		kv.db, err = backend.NewBoltdbBackend(filepath.Join("./dbfile", fmt.Sprintf("bolt-%d", me)))
+		kv.db, err = backend.NewBoltdbBackend(filepath.Join("./dbfile", fmt.Sprintf("bolt-%d-%s", me, uuid.New().String())))
 	} else if backendtype == LevelDB {
-		kv.db, err = backend.NewLeveldbBackend(filepath.Join("./dbfile", fmt.Sprintf("level-%d", me)))
+		kv.db, err = backend.NewLeveldbBackend(filepath.Join("./dbfile", fmt.Sprintf("level-%d-%s", me, uuid.New().String())))
 	} else if backendtype == Memory {
 		kv.db = backend.NewMemoryBackend()
 	} else {
