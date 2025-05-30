@@ -20,7 +20,7 @@ import (
 	"6.5840/raft"
 )
 
-const backendtype BackendType = LevelDB
+const backendtype BackendType = Bolt
 
 func randstring(n int) string {
 	b := make([]byte, 2*n)

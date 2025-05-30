@@ -30,7 +30,7 @@ func NewBoltdbBackend(path string) (*boltdbBackend, error) {
 }
 
 func (b *boltdbBackend) Put(key, value string) error {
-	return b.db.Update(func(tx *bolt.Tx) error {
+	return b.db.Batch(func(tx *bolt.Tx) error {
 		bucket, err := tx.CreateBucketIfNotExists([]byte("keys"))
 		if err != nil {
 			return err
@@ -57,7 +57,7 @@ func (b *boltdbBackend) Get(key string) (string, error) {
 }
 
 func (b *boltdbBackend) Delete(key string) error {
-	return b.db.Update(func(tx *bolt.Tx) error {
+	return b.db.Batch(func(tx *bolt.Tx) error {
 		bucket := tx.Bucket([]byte("keys"))
 		if bucket == nil {
 			return bolterrors.ErrBucketNotFound

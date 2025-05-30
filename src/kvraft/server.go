@@ -222,15 +222,24 @@ func (kv *KVServer) DBExecute(op *Op, isLeader bool) (res result) {
 			return
 		}
 	case OpPut:
-		kv.db.Put(op.Key, op.Value)
+		err := kv.db.Put(op.Key, op.Value)
+		if err != nil {
+			res.Err = Err(err.Error())
+		}
 		return
 	case OpAppend:
 		val, exist := kv.db.Get(op.Key)
 		if exist == nil {
-			kv.db.Put(op.Key, val+op.Value)
+			err := kv.db.Put(op.Key, val+op.Value)
+			if err != nil {
+				res.Err = Err(err.Error())
+			}
 			return
 		} else {
-			kv.db.Put(op.Key, op.Value)
+			err := kv.db.Put(op.Key, op.Value)
+			if err != nil {
+				res.Err = Err(err.Error())
+			}
 			return
 		}
 	}
