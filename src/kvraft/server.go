@@ -153,7 +153,7 @@ func (kv *KVServer) PutAppend(args *PutAppendArgs, reply *PutAppendReply) {
 }
 
 func (kv *KVServer) ApplyHandler() {
-	for !kv.killed() {
+	for !kv.Killed() {
 		log := <-kv.applyCh
 
 		if log.CommandValid {
@@ -260,7 +260,7 @@ func (kv *KVServer) Kill() {
 	// Your code here, if desired.
 }
 
-func (kv *KVServer) killed() bool {
+func (kv *KVServer) Killed() bool {
 	z := atomic.LoadInt32(&kv.dead)
 	return z == 1
 }
