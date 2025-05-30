@@ -39,11 +39,11 @@ func MakePersisterWithPath(raftStatePath, snapshotPath string) *Persister {
 		snapshotPath:  snapshotPath,
 	}
 	// Attempt to load data from files if they exist
-	if _, err := os.Stat(raftStatePath); err == nil {
-		if err := p.LoadFromFile(); err != nil {
-			DPrintf("failed to load data from file")
-		}
-	}
+	// if _, err := os.Stat(raftStatePath); err == nil {
+	// 	if err := p.LoadFromFile(); err != nil {
+	// 		DPrintf("failed to load data from file")
+	// 	}
+	// }
 	return p
 }
 
@@ -82,12 +82,12 @@ func (ps *Persister) Save(raftstate []byte, snapshot []byte) error {
 	ps.raftstate = clone(raftstate)
 	ps.snapshot = clone(snapshot)
 	// Write to files
-	if err := os.WriteFile(ps.raftStatePath, raftstate, 0644); err != nil {
-		return err
-	}
-	if err := os.WriteFile(ps.snapshotPath, snapshot, 0644); err != nil {
-		return err
-	}
+	// if err := os.WriteFile(ps.raftStatePath, raftstate, 0644); err != nil {
+	// 	return err
+	// }
+	// if err := os.WriteFile(ps.snapshotPath, snapshot, 0644); err != nil {
+	// 	return err
+	// }
 	return nil
 }
 
