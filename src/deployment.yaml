@@ -1,0 +1,30 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: kvserver
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: kvserver
+  template:
+    metadata:
+      labels:
+        app: kvserver
+    spec:
+      containers:
+      - name: kvserver
+        image: kvserver:latest
+        env:
+        - name: KV_SERVER_INDEX
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.name
+        - name: KV_SERVER_ADDRESSES
+          value: "kvserver-0.kvserver.default.svc.cluster.local,kvserver-1.kvserver.default.svc.cluster.local,kvserver-2.kvserver.default.svc.cluster.local"
+        - name: KV_MAXRAFTSTATE
+          value: "1000"
+        - name: KV_BACKEND_TYPE
+          value: "0"
+        ports:
+        - containerPort: 8080
