@@ -2,6 +2,8 @@ package backend
 
 import (
 	"encoding/json"
+	"os"
+	"path/filepath"
 
 	"github.com/syndtr/goleveldb/leveldb"
 )
@@ -11,6 +13,9 @@ type leveldbBackend struct {
 }
 
 func NewLeveldbBackend(path string) (*leveldbBackend, error) {
+	if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
+		return nil, err
+	}
 	db, err := leveldb.OpenFile(path, nil)
 	if err != nil {
 		return nil, err

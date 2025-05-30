@@ -2,6 +2,8 @@ package backend
 
 import (
 	"encoding/json"
+	"os"
+	"path/filepath"
 
 	bolt "go.etcd.io/bbolt"
 	bolterrors "go.etcd.io/bbolt/errors"
@@ -12,6 +14,9 @@ type boltdbBackend struct {
 }
 
 func NewBoltdbBackend(path string) (*boltdbBackend, error) {
+	if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
+		return nil, err
+	}
 	db, err := bolt.Open(path, 0600, nil)
 	if err != nil {
 		return nil, err
