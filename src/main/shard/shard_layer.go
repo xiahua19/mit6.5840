@@ -1,6 +1,7 @@
 package main
 
 import (
+	"flag"
 	"fmt"
 	"hash/fnv"
 	"io"
@@ -47,7 +48,8 @@ func (s *ShardLayerHTTP) proxyRequest(w http.ResponseWriter, r *http.Request, en
 	// Create a new request to forward to the target shard.
 	forwardReq, err := http.NewRequest(r.Method, forwardURL, r.Body)
 	if err != nil {
-		http.Error(w, "Failed to create forward request", http.StatusInternalServerError)
+		info := fmt.Sprintf("Failed to create forward request %s", forwardURL)
+		http.Error(w, info, http.StatusInternalServerError)
 		return
 	}
 	forwardReq.Header = r.Header
@@ -56,7 +58,8 @@ func (s *ShardLayerHTTP) proxyRequest(w http.ResponseWriter, r *http.Request, en
 	client := &http.Client{}
 	resp, err := client.Do(forwardReq)
 	if err != nil {
-		http.Error(w, "Failed to forward request", http.StatusInternalServerError)
+		info := fmt.Sprintf("Failed to forward request %s", forwardURL)
+		http.Error(w, info, http.StatusInternalServerError)
 		return
 	}
 	defer resp.Body.Close()
@@ -72,8 +75,8 @@ func (s *ShardLayerHTTP) startHTTPServer(port string) {
 		s.proxyRequest(w, r, "get")
 	})
 
-	http.HandleFunc("/set", func(w http.ResponseWriter, r *http.Request) {
-		s.proxyRequest(w, r, "set")
+	http.HandleFunc("/put", func(w http.ResponseWriter, r *http.Request) {
+		s.proxyRequest(w, r, "put")
 	})
 
 	http.HandleFunc("/delete", func(w http.ResponseWriter, r *http.Request) {
@@ -87,20 +90,37 @@ func (s *ShardLayerHTTP) startHTTPServer(port string) {
 	}
 }
 
-// GetConfigFromEnv reads shard configuration from environment variables.
+// GetShardConfigFromEnv reads shard configuration from environment variables or command-line arguments.
 func GetShardConfigFromEnv() (shardCount int, shardURLs []string, err error) {
+	// Try to get from environment variables first
 	shardCountStr := os.Getenv("SHARD_COUNT")
+	shardURLsEnv := os.Getenv("SHARD_URLS")
+
+	// If environment variables are not set, try command-line arguments
+	if shardCountStr == "" || shardURLsEnv == "" {
+		shardCountPtr := flag.Int("shard-count", 3, "Number of shard servers")
+		shardURLsPtr := flag.String("shard-urls", "", "Comma-separated list of shard URLs")
+		flag.Parse()
+
+		if shardCountStr == "" {
+			shardCountStr = strconv.Itoa(*shardCountPtr)
+		}
+		if shardURLsEnv == "" {
+			shardURLsEnv = *shardURLsPtr
+		}
+	}
+
+	// Validate and parse
 	if shardCountStr == "" {
-		return 0, nil, fmt.Errorf("SHARD_COUNT environment variable is required")
+		return 0, nil, fmt.Errorf("SHARD_COUNT is required (either via environment or command-line)")
 	}
 	shardCount, err = strconv.Atoi(shardCountStr)
 	if err != nil {
 		return 0, nil, fmt.Errorf("invalid SHARD_COUNT: %v", err)
 	}
 
-	shardURLsEnv := os.Getenv("SHARD_URLS")
 	if shardURLsEnv == "" {
-		return 0, nil, fmt.Errorf("SHARD_URLS environment variable is required")
+		return 0, nil, fmt.Errorf("SHARD_URLS is required (either via environment or command-line)")
 	}
 	shardURLs = strings.Split(shardURLsEnv, ",")
 
@@ -111,7 +131,8 @@ func GetShardConfigFromEnv() (shardCount int, shardURLs []string, err error) {
 func main() {
 	port := os.Getenv("SHARD_LAYER_PORT")
 	if port == "" {
-		port = "8080"
+		portStr := flag.String("port", "6666", "HTTP server port")
+		port = *portStr
 	}
 
 	shardCount, shardURLs, err := GetShardConfigFromEnv()

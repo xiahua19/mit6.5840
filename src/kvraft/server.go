@@ -265,6 +265,10 @@ func (kv *KVServer) Killed() bool {
 	return z == 1
 }
 
+func (kv *KVServer) GetRaft() *raft.Raft {
+	return kv.rf
+}
+
 // servers[] contains the ports of the set of
 // servers that will cooperate via Raft to
 // form the fault-tolerant key/value service.

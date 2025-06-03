@@ -1,160 +1,149 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"flag"
-	"fmt"
 	"log"
 	"net/http"
 	"os"
+	"os/signal"
 	"strconv"
-	"strings"
+	"sync"
+	"syscall"
 	"time"
-
-	"6.5840/kvraft"
-	"6.5840/labrpc"
-	"6.5840/raft"
 )
 
-// KVServerModule encapsulates the functionality of a KVServer for containerized deployment.
-type KVServerModule struct {
-	server     *kvraft.KVServer
-	httpServer *http.Server
-	clientEnd  *labrpc.ClientEnd
+type KVServer struct {
+	mu      sync.RWMutex
+	config  *config
+	httpSrv *http.Server
 }
 
-// NewKVServerModule creates a new KVServerModule instance.
-func NewKVServerModule(servers []*labrpc.ClientEnd, me int, persister *raft.Persister, maxraftstate int, backendtype kvraft.BackendType, port string) *KVServerModule {
-	module := &KVServerModule{
-		server:    kvraft.StartKVServer(servers, me, persister, maxraftstate, backendtype),
-		clientEnd: servers[me],
+// NewKVServer creates a new KVServer cluster.
+func NewKVServer(nservers int) *KVServer {
+	cfg := make_config(nil, nservers, false, -1)
+	return &KVServer{
+		config: cfg,
 	}
-	module.startHTTPServer(port)
-	return module
 }
 
-// startHTTPServer initializes an HTTP server for REST API access.
-func (m *KVServerModule) startHTTPServer(port string) {
-	http.HandleFunc("/get", func(w http.ResponseWriter, r *http.Request) {
-		key := r.URL.Query().Get("key")
-		args := &kvraft.GetArgs{Key: key}
-		reply := &kvraft.GetReply{}
-		ok := m.clientEnd.Call("KVServer.Get", args, reply)
-		if !ok || reply.Err != kvraft.OK {
-			json.NewEncoder(w).Encode(map[string]string{"error": "RPC call failed"})
-			return
-		}
-		json.NewEncoder(w).Encode(map[string]string{"value": reply.Value})
-	})
+// Shutdown shuts down all servers in the cluster and the HTTP server.
+func (kvs *KVServer) Shutdown() {
+	for i := 0; i < kvs.config.n; i++ {
+		kvs.config.ShutdownServer(i)
+	}
 
-	http.HandleFunc("/set", func(w http.ResponseWriter, r *http.Request) {
-		key := r.URL.Query().Get("key")
-		value := r.URL.Query().Get("value")
-		args := &kvraft.PutAppendArgs{Key: key, Value: value, Op: "Put"}
-		reply := &kvraft.PutAppendReply{}
-		ok := m.clientEnd.Call("KVServer.PutAppend", args, reply)
-		if !ok || reply.Err != kvraft.OK {
-			json.NewEncoder(w).Encode(map[string]string{"error": "RPC call failed"})
-			return
+	if kvs.httpSrv != nil {
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		if err := kvs.httpSrv.Shutdown(ctx); err != nil {
+			log.Printf("HTTP server shutdown error: %v", err)
 		}
-		json.NewEncoder(w).Encode(map[string]string{"status": "OK"})
-	})
+	}
+}
 
-	http.HandleFunc("/delete", func(w http.ResponseWriter, r *http.Request) {
-		key := r.URL.Query().Get("key")
-		args := &kvraft.PutAppendArgs{Key: key, Value: "", Op: "Delete"}
-		reply := &kvraft.PutAppendReply{}
-		ok := m.clientEnd.Call("KVServer.PutAppend", args, reply)
-		if !ok || reply.Err != kvraft.OK {
-			json.NewEncoder(w).Encode(map[string]string{"error": "RPC call failed"})
-			return
-		}
-		json.NewEncoder(w).Encode(map[string]string{"status": "OK"})
-	})
+// GetHandler handles HTTP GET requests.
+func (kvs *KVServer) GetHandler(w http.ResponseWriter, r *http.Request) {
+	kvs.mu.RLock()
+	defer kvs.mu.RUnlock()
 
-	m.httpServer = &http.Server{Addr: ":" + port}
+	key := r.URL.Query().Get("key")
+	if key == "" {
+		http.Error(w, "Key is required", http.StatusBadRequest)
+		return
+	}
+
+	ck := kvs.config.MakeClient(kvs.config.All())
+	value := ck.Get(key)
+
+	response := map[string]string{"value": value}
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(response)
+}
+
+// PutHandler handles HTTP PUT requests.
+func (kvs *KVServer) PutHandler(w http.ResponseWriter, r *http.Request) {
+	kvs.mu.Lock()
+	defer kvs.mu.Unlock()
+
+	key := r.URL.Query().Get("key")
+	value := r.URL.Query().Get("value")
+	if key == "" || value == "" {
+		http.Error(w, "Key and value are required", http.StatusBadRequest)
+		return
+	}
+
+	ck := kvs.config.MakeClient(kvs.config.All())
+	ck.Put(key, value)
+
+	w.WriteHeader(http.StatusOK)
+}
+
+// DeleteHandler handles HTTP DELETE requests.
+func (kvs *KVServer) DeleteHandler(w http.ResponseWriter, r *http.Request) {
+	kvs.mu.Lock()
+	defer kvs.mu.Unlock()
+
+	key := r.URL.Query().Get("key")
+	if key == "" {
+		http.Error(w, "Key is required", http.StatusBadRequest)
+		return
+	}
+
+	ck := kvs.config.MakeClient(kvs.config.All())
+	ck.Put(key, "") // Simulate delete by setting an empty value
+
+	w.WriteHeader(http.StatusOK)
+}
+
+// StartHTTPServer starts the HTTP server for the KVServer.
+func (kvs *KVServer) StartHTTPServer(port string) {
+	mux := http.NewServeMux()
+	mux.HandleFunc("/get", kvs.GetHandler)
+	mux.HandleFunc("/put", kvs.PutHandler)
+	mux.HandleFunc("/delete", kvs.DeleteHandler)
+
+	kvs.httpSrv = &http.Server{
+		Addr:    ":" + port,
+		Handler: mux,
+	}
+
+	log.Printf("Starting HTTP server on %s", kvs.httpSrv.Addr)
 	go func() {
-		if err := m.httpServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+		if err := kvs.httpSrv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			log.Fatalf("HTTP server error: %v", err)
 		}
 	}()
 }
 
-// Run starts the KVServerModule and blocks until the server is killed.
-func (m *KVServerModule) Run() {
-	// Block until the server is killed.
-	for !m.server.Killed() {
-		time.Sleep(1 * time.Second)
-	}
-	m.httpServer.Close()
-}
-
-// GetConfigFromEnv reads configuration from environment variables.
-func GetConfigFromEnv() (servers []*labrpc.ClientEnd, me int, persister *raft.Persister, maxraftstate int, backendtype kvraft.BackendType, err error) {
-	// Parse server index (me).
-	meStr := os.Getenv("KV_SERVER_INDEX")
-	if meStr == "" {
-		return nil, 0, nil, 0, 0, fmt.Errorf("KV_SERVER_INDEX environment variable is required")
-	}
-	// Extract numeric part (e.g., "kvserver-0" -> "0")
-	meStr = strings.TrimPrefix(meStr, "kvserver-")
-	me, err = strconv.Atoi(meStr)
-	if err != nil {
-		return nil, 0, nil, 0, 0, fmt.Errorf("invalid KV_SERVER_INDEX (must end with a number): %v", err)
-	}
-
-	// Parse maxraftstate.
-	maxraftstateStr := os.Getenv("KV_MAXRAFTSTATE")
-	maxraftstate = -1 // Default to no snapshotting.
-	if maxraftstateStr != "" {
-		maxraftstate, err = strconv.Atoi(maxraftstateStr)
-		if err != nil {
-			return nil, 0, nil, 0, 0, fmt.Errorf("invalid KV_MAXRAFTSTATE: %v", err)
-		}
-	}
-
-	// Parse backend type.
-	backendtypeStr := os.Getenv("KV_BACKEND_TYPE")
-	backendtype = kvraft.Memory // Default to in-memory backend.
-	if backendtypeStr != "" {
-		backendtypeInt, err := strconv.Atoi(backendtypeStr)
-		if err != nil {
-			return nil, 0, nil, 0, 0, fmt.Errorf("invalid KV_BACKEND_TYPE: %v", err)
-		}
-		backendtype = kvraft.BackendType(backendtypeInt)
-	}
-
-	// Parse server addresses.
-	serverAddrs := os.Getenv("KV_SERVER_ADDRESSES")
-	if serverAddrs == "" {
-		return nil, 0, nil, 0, 0, fmt.Errorf("KV_SERVER_ADDRESSES environment variable is required")
-	}
-	addrs := strings.Split(serverAddrs, ",")
-	servers = make([]*labrpc.ClientEnd, len(addrs))
-
-	// Assume the network instance is shared externally.
-	net := labrpc.MakeNetwork()
-	for i, addr := range addrs {
-		end := net.MakeEnd(addr)
-		servers[i] = end
-	}
-
-	// Initialize persister (simplified for demo).
-	persister = raft.MakePersister()
-
-	return servers, me, persister, maxraftstate, backendtype, nil
-}
-
-// Main function for containerized deployment.
+// Example main function to keep process alive
 func main() {
-	port := flag.String("port", "8081", "HTTP server port")
+	// Define all command-line flags first
+	portPtr := flag.String("port", "8080", "HTTP server port")
+	raftRepliPtr := flag.Int("raftrepli", 3, "Number of raft replicated servers")
 	flag.Parse()
 
-	servers, me, persister, maxraftstate, backendtype, err := GetConfigFromEnv()
-	if err != nil {
-		log.Fatalf("Failed to read configuration from environment: %v", err)
+	// Get port from environment or command-line
+	port := os.Getenv("PORT")
+	if port == "" {
+		port = *portPtr
 	}
 
-	module := NewKVServerModule(servers, me, persister, maxraftstate, backendtype, *port)
-	module.Run()
+	// Get raftrepli from environment or command-line
+	raftRepliStr := os.Getenv("RAFT_REPLI")
+	if raftRepliStr == "" {
+		raftRepliStr = strconv.Itoa(*raftRepliPtr)
+	}
+	shardCount, _ := strconv.Atoi(raftRepliStr)
+
+	kvs := NewKVServer(shardCount)
+	kvs.StartHTTPServer(port)
+
+	sigChan := make(chan os.Signal, 1)
+	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
+
+	sig := <-sigChan
+	log.Printf("Received signal: %v, shutting down...", sig)
+	kvs.Shutdown()
 }
