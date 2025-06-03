@@ -1,0 +1,82 @@
+# statefulset.yaml for k8s_server
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: k8s-server
+spec:
+  replicas: 3
+  serviceName: k8s-server
+  selector:
+    matchLabels:
+      app: k8s-server
+  template:
+    metadata:
+      labels:
+        app: k8s-server
+    spec:
+      containers:
+      - name: k8s-server
+        image: xiahuaforjob/k8s_server:v0.0.1
+        ports:
+        - containerPort: 8080
+        env:
+        - name: PORT
+          value: "8080"
+        - name: RAFT_REPLI
+          value: "3"
+---
+# service.yaml for k8s-server
+apiVersion: v1
+kind: Service
+metadata:
+  name: k8s-server
+spec:
+  clusterIP: None
+  selector:
+    app: k8s-server
+  ports:
+  - protocol: TCP
+    port: 8080
+    targetPort: 8080
+---
+# deployment.yaml for shard_layer
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: shard-layer
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: shard-layer
+  template:
+    metadata:
+      labels:
+        app: shard-layer
+    spec:
+      containers:
+      - name: shard-layer
+        image: xiahuaforjob/shard_layer:v0.0.3
+        ports:
+        - containerPort: 8080
+        env:
+        - name: SHARD_COUNT
+          value: "3"
+        - name: SHARD_URLS
+          value: "http://k8s-server-0.k8s-server:8080,http://k8s-server-1.k8s-server:8080,http://k8s-server-2.k8s-server:8080"
+        - name: SHARD_LAYER_PORT
+          value: "8080"
+---
+# service.yaml for shard_layer
+apiVersion: v1
+kind: Service
+metadata:
+  name: shard-layer
+spec:
+  selector:
+    app: shard-layer
+  ports:
+  - protocol: TCP
+    port: 80
+    targetPort: 8080
+  type: LoadBalancer
